@@ -1,55 +1,68 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
+from typing import Optional
+
 app = FastAPI()
-def is_prime(n: int) -> bool:
-    """Check if a number is prime."""
-    if n < 2:
-        return False
-    for i in range(2, int(n ** 0.5) + 1):
-        if n % i == 0:
-            return False
-    return True
-def is_perfect(n: int) -> bool:
-    """Check if a number is perfect."""
-    if n < 1:
-        return False
-    return sum(i for i in range(1, n) if n % i == 0) == n
+
+# Default number to use if no number is provided
+DEFAULT_NUMBER = 42  
+
 @app.get("/api/classify-number")
-def classify_number(number: str):
+def classify_number(number: Optional[str] = Query(default=None, description="The number to classify")):
+    print(f"Received number: {number}")  # Debugging: Print the received number
+    
+    # Handle missing parameter or empty string by using the default number
+    if number is None or number == "":
+        number = str(DEFAULT_NUMBER)  # Convert the default number to a string for consistency
+        print(f"Using default number: {number}")  # Debugging: Print the default number
+    
+    # Validate input (must be a whole number, reject floats)
     try:
-        num = float(number)  # Allow floating-point numbers
-        if num.is_integer():  # Convert float 3.0 to int 3
-            num = int(num)
-        else:
-            return JSONResponse(
-                status_code=200,  # Floats should return 200, not 400
-                content={
-                    "number": num,
-                    "is_prime": False,
-                    "is_perfect": False,
-                    "properties": ["floating-point"],
-                    "digit_sum": None,
-                    "fun_fact": "Fun facts are only available for whole numbers."
-                },
-            )
-    except ValueError:
+        if "." in number:
+            raise ValueError("Invalid input: floating-point numbers are not allowed")
+        num = int(number)
+        print(f"Parsed number: {num}")  # Debugging: Print the parsed number
+    except ValueError as e:
+        print(f"Validation error: {e}")  # Debugging: Print validation error
         return JSONResponse(
-            status_code=400,  # Invalid input should return 400
-            content={"error": True, "message": "Invalid input. Please provide a valid number."},
+            status_code=400,  # Use 400 for client errors
+            content={"number": number, "error": True, "message": str(e)}
         )
-    # Determine properties
+
+    # Rest of the classification logic
     properties = ["even" if num % 2 == 0 else "odd"]
-    # Check Armstrong number
-    digit_powers_sum = sum(int(digit) ** len(str(abs(num))) for digit in str(abs(num)))
+    print(f"Properties (even/odd): {properties}")  # Debugging: Print even/odd property
+    
+    # Armstrong check
+    num_length = len(str(abs(num)))
+    digit_powers_sum = sum(int(digit) ** num_length for digit in str(abs(num)))
     if num == digit_powers_sum:
         properties.insert(0, "armstrong")
-    # Construct response
+        print(f"Armstrong check passed: {num} is an Armstrong number")  # Debugging: Print Armstrong result
+    
+    # Perfect number check (handle 0 case)
+    is_perfect = num > 0 and sum(i for i in range(1, int(num ** 0.5) + 1) if num % i == 0) == num
+    print(f"Perfect number check: {is_perfect}")  # Debugging: Print perfect number result
+    
+    # Prime check (basic implementation)
+    if num > 1:
+        is_prime = all(num % i != 0 for i in range(2, int(num ** 0.5) + 1))
+    else:
+        is_prime = False
+    print(f"Prime check: {is_prime}")  # Debugging: Print prime check result
+    
+    # Fun fact (replace with NumbersAPI later)
+    fun_fact = f"{num} is just an interesting number!"
+    print(f"Fun fact: {fun_fact}")  # Debugging: Print fun fact
+    
+    # Return the response
     response = {
         "number": num,
-        "is_prime": is_prime(num),
-        "is_perfect": is_perfect(num),
+        "is_prime": is_prime,
+        "is_perfect": is_perfect,
         "properties": properties,
         "digit_sum": sum(int(digit) for digit in str(abs(num))),
-        "fun_fact": f"{num} is just an interesting number!",
+        "fun_fact": fun_fact
     }
-    return JSONResponse(status_code=200, content=response)  # Ensure 200 status
+    print(f"Final response: {response}")  # Debugging: Print the final response
+    return response
